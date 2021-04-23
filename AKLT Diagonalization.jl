@@ -41,26 +41,36 @@ function MakeOp(C::Vector{Array{Complex{Float64},2}})
     return HTerm
 end
 
-function traceop(n)
+function traceop(k::Int64,j::Int64)
     trop = [1. 0 0 ; 0 1 0 ; 0 0 1]*(1+0*im)
-    for i in 1:n-2
-        trop = kron(trop,id)
+    if k != 2
+        for i in 1:k-2
+            trop = kron(trop,id)
+        end
     end
-    trop = kron(trop,[1 1 1])
+    statvec = [0 0 0]
+    statvec[j]=1.
+    trop = kron(trop,statvec)
     return trop
 end
 
 function partialtrace(inputrho::Array{Complex{Float64},2},k)
     for i in 1:k
-        inputrho = traceop(L+1-i)*inputrho*transpose(traceop(L+1-i))
+        inputrho = traceop(L+1-i,1)*inputrho*transpose(traceop(L+1-i,1))+traceop(L+1-i,2)*inputrho*transpose(traceop(L+1-i,2))+traceop(L+1-i,3)*inputrho*transpose(traceop(L+1-i,3))
     end
     return inputrho
 end
 
 function SvN(dmat::Array{Complex{Float64},2})
-    schmidtnumbers = eigvals(dmat)
+    schmidtnumbers = filter(!iszero,eigvals(dmat))
+    for i in 1:length(schmidtnumbers)
+        if schmidtnumbers[i] < 0.01
+            schmidtnumbers[i]=0
+        end
+    end
+    schmidtnumbers = filter(!iszero,schmidtnumbers)
     vne = 0
-    for i in length(schmidtnumbers)
+    for i in 1:length(schmidtnumbers)
         vne = vne - schmidtnumbers[i]*log(schmidtnumbers[i])
     end
     return vne
@@ -78,9 +88,9 @@ projminus = [0. 0 0 ; 0 0 0 ; 0 0 1]*(1+0*im)
 id = [1. 0 0 ; 0 1 0 ; 0 0 1]*(1+0*im)
 
 #system length#
-L=5
+L=7
 #which excited state-- 1-3^L are permitted
-n=1
+n=2
 
 
 H = zeros(3^L,3^L)
@@ -88,6 +98,8 @@ for i in 1:L-1
     H = H + MakeOp(MakeOpList(X,X,i,i+1,L))+MakeOp(MakeOpList(Y,Y,i,i+1,L))+MakeOp(MakeOpList(Z,Z,i,i+1,L))+(1/3)*(MakeOp(MakeOpList(X,X,i,i+1,L))+MakeOp(MakeOpList(Y,Y,i,i+1,L))+MakeOp(MakeOpList(Z,Z,i,i+1,L)))*(MakeOp(MakeOpList(X,X,i,i+1,L))+MakeOp(MakeOpList(Y,Y,i,i+1,L))+MakeOp(MakeOpList(Z,Z,i,i+1,L)))
 end
 
+
+eigvals(H)
 states = eigvecs(H)
 dmat = makerho(states,n)
 YAX = zeros(L-1)
@@ -96,8 +108,8 @@ for i in 1:L-1
 end
 XAX = 2:L
 
-plot(XAX,YAX,title = string("SvN of AKLT Chain of Length ",L, " N =",n), label =  nothing, xlabel = "Bipartition Placement", ylabel = "Entanglement Entropy")
 
+plot(XAX,YAX,title = string("SvN of AKLT Chain of Length ",L, " N =",n), label =  nothing, xlabel = "Bipartition Placement", ylabel = "Entanglement Entropy")
 
 #savefig(string("Density of States with L= ",L,", W=", w, ", and t=",t))
 
